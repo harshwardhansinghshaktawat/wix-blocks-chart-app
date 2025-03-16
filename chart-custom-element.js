@@ -15,6 +15,9 @@ class WixChartBuilder extends HTMLElement {
     // Chart instance
     this.chartInstance = null;
     
+    // Check for stored editor visibility state
+    this.editorVisible = this.getStoredEditorState();
+    
     // Chart configuration
     this.chartConfig = {
       type: 'line',
@@ -64,8 +67,7 @@ class WixChartBuilder extends HTMLElement {
       }
     };
     
-    // Editor state
-    this.editorVisible = true;
+    // Editor state (activeTab)
     this.activeTab = 'data';
     
     // Properties
@@ -1426,6 +1428,48 @@ class WixChartBuilder extends HTMLElement {
     const b = parseInt(hex.slice(5, 7), 16);
     
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  
+  // Store editor visibility state
+  storeEditorState(isVisible) {
+    try {
+      // Generate a unique ID for this instance based on its position in the DOM
+      const elementId = this.getElementId();
+      localStorage.setItem(`wix-chart-builder-editor-visible-${elementId}`, isVisible.toString());
+    } catch (e) {
+      console.warn('Could not store editor state:', e);
+    }
+  }
+  
+  // Get stored editor visibility state
+  getStoredEditorState() {
+    try {
+      const elementId = this.getElementId();
+      const storedValue = localStorage.getItem(`wix-chart-builder-editor-visible-${elementId}`);
+      // Default to false (hidden) if not set
+      return storedValue === null ? false : storedValue === 'true';
+    } catch (e) {
+      console.warn('Could not retrieve editor state:', e);
+      return false; // Default to hidden on error
+    }
+  }
+  
+  // Generate a semi-unique ID for this element instance
+  getElementId() {
+    // If the element has an ID attribute, use that
+    if (this.id) return this.id;
+    
+    // Otherwise, generate one based on its position in the DOM
+    let node = this;
+    let position = 0;
+    while (node.previousElementSibling) {
+      position++;
+      node = node.previousElementSibling;
+    }
+    
+    // Use parent's tag + position as a reasonably unique identifier
+    const parentTag = this.parentElement ? this.parentElement.tagName.toLowerCase() : 'unknown';
+    return `${parentTag}-${position}`;
   }
   
   rgbaToHex(rgba) {
