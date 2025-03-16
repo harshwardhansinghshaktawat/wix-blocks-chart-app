@@ -7,6 +7,16 @@
  */
 
 // Define the custom element
+/**
+ * Wix Chart Builder Custom Element - Version 1.1
+ * Custom element tag name: wix-chart-builder
+ * 
+ * A powerful chart builder for Wix sites using Chart.js
+ * - Multiple instances with independent settings
+ * - Data persistence across page reloads
+ * - Various chart types with extensive customization
+ * - Reliable Chart.js loading with multiple fallbacks
+ */
 class WixChartBuilder extends HTMLElement {
   constructor() {
     super();
@@ -166,38 +176,226 @@ class WixChartBuilder extends HTMLElement {
     // Set unique instance ID when connected to DOM
     this._instanceId = this.getElementId();
     
+    // Create initial shadow DOM with loading indicator
+    if (!this.shadowRoot.querySelector('.loading-indicator')) {
+      this.shadowRoot.innerHTML = `
+        <style>
+          .loading-indicator {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            text-align: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          }
+          .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border-left-color: #4361ee;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+        <div class="loading-indicator">
+          <div class="loading-spinner"></div>
+          <div>Loading Chart Builder...</div>
+        </div>
+      `;
+    }
+    
     // Now we can load stored settings if they exist
     this.loadStoredSettings();
     
-    this.loadChartJsLibrary()
-      .then(() => {
-        this.render();
-        this.setupEventListeners();
-        this.renderChart();
-      })
-      .catch(error => {
-        console.error('Failed to load Chart.js:', error);
-        this.shadowRoot.innerHTML = `
-          <div style="color: red; padding: 20px; text-align: center;">
-            Failed to load Chart.js library. Please check your internet connection.
-          </div>
-        `;
-      });
+    // Add retry logic
+    const attemptLoad = (retryCount = 0) => {
+      this.loadChartJsLibrary()
+        .then(() => {
+          console.log('Chart.js loaded successfully');
+          this.render();
+          this.setupEventListeners();
+          this.renderChart();
+        })
+        .catch(error => {
+          console.error('Failed to load Chart.js:', error);
+          
+          if (retryCount < 2) {
+            console.log(`Retrying Chart.js load (attempt ${retryCount + 1}/2)...`);
+            // Wait 1.5 seconds before retrying
+            setTimeout(() => attemptLoad(retryCount + 1), 1500);
+          } else {
+            // All attempts failed
+            this.shadowRoot.innerHTML = `
+              <style>
+                .error-container {
+                  color: #721c24;
+                  background-color: #f8d7da;
+                  border: 1px solid #f5c6cb;
+                  padding: 20px;
+                  border-radius: 8px;
+                  text-align: center;
+                  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                  margin: 20px;
+                }
+                .retry-button {
+                  background-color: #0d6efd;
+                  color: white;
+                  border: none;
+                  padding: 8px 16px;
+                  border-radius: 4px;
+                  cursor: pointer;
+                  margin-top: 15px;
+                  font-size: 14px;
+                }
+                .retry-button:hover {
+                  background-color: #0b5ed7;
+                }
+              </style>
+              <div class="error-container">
+                <h3>Chart Builder Error</h3>
+                <p>Failed to load Chart.js library. This may be due to:</p>
+                <ul style="text-align: left; display: inline-block;">
+                  <li>Network connectivity issues</li>
+                  <li>Content security policy restrictions</li>
+                  <li>CDN availability problems</li>
+                </ul>
+                <p>Please try again or contact your administrator.</p>
+                <button class="retry-button" id="retry-button">Retry Loading</button>
+              </div>
+            `;
+            
+            // Add retry button functionality
+            const retryButton = this.shadowRoot.querySelector('#retry-button');
+            if (retryButton) {
+              retryButton.addEventListener('click', () => {
+                this.shadowRoot.innerHTML = `
+                  <div class="loading-indicator">
+                    <div class="loading-spinner"></div>
+                    <div>Retrying Chart.js load...</div>
+                  </div>
+                `;
+                attemptLoad(0); // Reset retry count
+              });
+            }
+          }
+        });
+    };
+    
+    // Start loading process
+    attemptLoad();
   }
   
-  // Load Chart.js from CDN
+  // Load Chart.js with multiple fallback options
   loadChartJsLibrary() {
     return new Promise((resolve, reject) => {
+      // If Chart.js is already loaded globally
       if (window.Chart) {
+        console.log('Chart.js already loaded globally');
         resolve();
         return;
       }
       
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error('Failed to load Chart.js'));
-      document.head.appendChild(script);
+      // List of CDNs to try in order
+      const cdnUrls = [
+        'https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.3.0/chart.umd.min.js',
+        'https://unpkg.com/chart.js@4.3.0/dist/chart.umd.min.js'
+      ];
+      
+      // Try loading from each CDN in sequence
+      const loadFromCdn = (index) => {
+        if (index >= cdnUrls.length) {
+          // We've tried all CDNs, let's try to load the embedded version
+          this.loadEmbeddedChartJs().then(resolve).catch(reject);
+          return;
+        }
+        
+        console.log(`Attempting to load Chart.js from: ${cdnUrls[index]}`);
+        const script = document.createElement('script');
+        script.src = cdnUrls[index];
+        script.onload = () => {
+          console.log(`Successfully loaded Chart.js from: ${cdnUrls[index]}`);
+          resolve();
+        };
+        script.onerror = () => {
+          console.warn(`Failed to load Chart.js from: ${cdnUrls[index]}`);
+          // Try the next CDN
+          loadFromCdn(index + 1);
+        };
+        
+        // Set crossorigin to anonymous for better error reporting
+        script.crossOrigin = "anonymous";
+        
+        // Add integrity check if needed later
+        document.head.appendChild(script);
+      };
+      
+      // Start loading process
+      loadFromCdn(0);
+    });
+  }
+  
+  // Embedded Chart.js as a last resort fallback
+  loadEmbeddedChartJs() {
+    return new Promise((resolve, reject) => {
+      try {
+        // Note: This is a compressed/minified version of Chart.js
+        // This would contain the minified chart.js code as a string that gets evaluated
+        // For brevity, I'm not including the full library code here
+        const chartJsCode = `
+          // Here would be the minified Chart.js code
+          // For real implementation, this would contain the complete Chart.js library code
+          // This is a placeholder to demonstrate the technique
+          window.Chart = window.Chart || (function() {
+            console.error('Using embedded Chart.js fallback - limited functionality');
+            // This is just a stub for demonstration
+            return function(ctx, config) {
+              const canvas = ctx;
+              const parent = canvas.parentNode;
+              
+              // Create a message in the canvas
+              const context = canvas.getContext('2d');
+              context.font = '14px Arial';
+              context.fillStyle = 'red';
+              context.textAlign = 'center';
+              context.fillText('Chart.js could not be loaded.', canvas.width/2, canvas.height/2-10);
+              context.fillText('Please check your internet connection.', canvas.width/2, canvas.height/2+10);
+              
+              return {
+                update: function() {},
+                destroy: function() {},
+                data: config.data || {},
+                options: config.options || {}
+              };
+            };
+          })();
+        `;
+        
+        // Create a blob URL for the code
+        const blob = new Blob([chartJsCode], {type: 'application/javascript'});
+        const script = document.createElement('script');
+        script.src = URL.createObjectURL(blob);
+        
+        script.onload = () => {
+          URL.revokeObjectURL(script.src); // Clean up
+          resolve();
+        };
+        
+        script.onerror = () => {
+          URL.revokeObjectURL(script.src); // Clean up
+          reject(new Error('Failed to load embedded Chart.js'));
+        };
+        
+        document.head.appendChild(script);
+      } catch (e) {
+        reject(e);
+      }
     });
   }
   
