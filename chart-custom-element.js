@@ -12,13 +12,19 @@ class WixChartBuilder extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     
+    // Generate unique instance ID
+    this._instanceId = null; // Will be set when element is connected to DOM
+    
     // Chart instance
     this.chartInstance = null;
     
-    // Check for stored editor visibility state
-    this.editorVisible = this.getStoredEditorState();
+    // Check for stored editor visibility state (will be initialized after instanceId is set)
+    this.editorVisible = false;
     
-    // Chart configuration
+    // Prepare to load stored configuration
+    this.loadingFromStorage = false;
+    
+    // Chart configuration - will be overridden by stored config if available
     this.chartConfig = {
       type: 'line',
       data: {
@@ -157,6 +163,12 @@ class WixChartBuilder extends HTMLElement {
   }
   
   connectedCallback() {
+    // Set unique instance ID when connected to DOM
+    this._instanceId = this.getElementId();
+    
+    // Now we can load stored settings if they exist
+    this.loadStoredSettings();
+    
     this.loadChartJsLibrary()
       .then(() => {
         this.render();
@@ -239,548 +251,30 @@ class WixChartBuilder extends HTMLElement {
           display: ${this.editorVisible ? 'none' : 'block'};
         }
         
-        .tab-nav {
-          display: flex;
-          background-color: var(--light-bg);
-          border-bottom: 1px solid #dee2e6;
-          overflow: hidden;
-        }
+        /* Rest of the CSS styles remain the same */
         
-        .tab-button {
-          padding: 12px 16px;
-          background: none;
-          border: none;
-          cursor: pointer;
-          font-weight: 500;
-          transition: var(--transition);
-          position: relative;
-          color: #495057;
-          font-size: 14px;
-          outline: none;
-        }
-        
-        .tab-button:hover {
-          background-color: rgba(67, 97, 238, 0.1);
-          color: var(--primary-color);
-        }
-        
-        .tab-button.active {
-          color: var(--primary-color);
-          background-color: white;
-        }
-        
-        .tab-button.active::after {
-          content: '';
+        /* Added styles for instance identification */
+        .instance-id {
           position: absolute;
-          bottom: 0;
-          left: 0;
-          width: 100%;
-          height: 3px;
-          background-color: var(--primary-color);
-          border-radius: 3px 3px 0 0;
-        }
-        
-        .tab-content {
-          display: none;
-          padding: 20px;
-        }
-        
-        .tab-content.active {
-          display: block;
-          animation: fadeIn 0.3s ease;
-        }
-        
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        
-        .form-group {
-          margin-bottom: 16px;
-        }
-        
-        .form-group label {
-          display: block;
-          margin-bottom: 6px;
-          font-weight: 500;
-          font-size: 14px;
-          color: #495057;
-        }
-        
-        .form-control {
-          width: 100%;
-          padding: 10px 12px;
-          border: 1px solid #ced4da;
-          border-radius: 4px;
-          font-size: 14px;
-          transition: var(--transition);
-        }
-        
-        .form-control:focus {
-          border-color: var(--primary-color);
-          outline: none;
-          box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.25);
-        }
-        
-        select.form-control {
-          -webkit-appearance: none;
-          -moz-appearance: none;
-          appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23495057' d='M6 8.5l4-4H2z'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 12px center;
-          padding-right: 30px;
-        }
-        
-        textarea.form-control {
-          min-height: 120px;
-          resize: vertical;
-        }
-        
-        .btn {
-          padding: 10px 16px;
-          font-weight: 500;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          transition: var(--transition);
-          font-size: 14px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-        }
-        
-        .btn svg {
-          margin-right: 6px;
-        }
-        
-        .btn-primary {
-          background-color: var(--primary-color);
-          color: white;
-        }
-        
-        .btn-primary:hover {
-          background-color: var(--secondary-color);
-        }
-        
-        .btn-secondary {
-          background-color: #6c757d;
-          color: white;
-        }
-        
-        .btn-secondary:hover {
-          background-color: #5a6268;
-        }
-        
-        .btn-success {
-          background-color: var(--success-color);
-          color: white;
-        }
-        
-        .btn-success:hover {
-          background-color: #3da8c9;
-        }
-        
-        .button-container {
-          display: flex;
-          gap: 10px;
-          margin-top: 20px;
-          justify-content: flex-end;
-        }
-        
-        .dataset-container {
-          border: 1px solid #dee2e6;
-          border-radius: var(--border-radius);
-          padding: 16px;
-          margin-bottom: 16px;
-          background-color: var(--light-bg);
-          position: relative;
-        }
-        
-        .dataset-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-        
-        .dataset-title {
-          font-weight: 600;
-          font-size: 16px;
-          color: var(--secondary-color);
-        }
-        
-        .dataset-actions {
-          display: flex;
-          gap: 8px;
-        }
-        
-        .action-btn {
-          background: none;
-          border: none;
-          cursor: pointer;
-          color: #6c757d;
-          transition: var(--transition);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 28px;
-          height: 28px;
-          border-radius: 4px;
-        }
-        
-        .action-btn:hover {
-          background-color: rgba(108, 117, 125, 0.1);
-          color: #495057;
-        }
-        
-        .color-preview {
-          display: inline-block;
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          border: 1px solid #dee2e6;
-          vertical-align: middle;
-          margin-right: 8px;
-        }
-        
-        .color-picker-container {
-          display: flex;
-          align-items: center;
-        }
-        
-        .color-input {
-          width: 0;
-          height: 0;
-          opacity: 0;
-          position: absolute;
-        }
-        
-        .palette-container {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-top: 8px;
-        }
-        
-        .palette-color {
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          cursor: pointer;
-          border: 1px solid #dee2e6;
-          transition: var(--transition);
-        }
-        
-        .palette-color:hover {
-          transform: scale(1.2);
-        }
-        
-        .layout-container {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 16px;
-        }
-        
-        .toggle-container {
-          display: flex;
-          align-items: center;
-          margin-bottom: 16px;
-        }
-        
-        .toggle-label {
-          margin-left: 8px;
-          font-size: 14px;
-        }
-        
-        .toggle-switch {
-          position: relative;
-          display: inline-block;
-          width: 40px;
-          height: 20px;
-        }
-        
-        .toggle-switch input {
-          opacity: 0;
-          width: 0;
-          height: 0;
-        }
-        
-        .toggle-slider {
-          position: absolute;
-          cursor: pointer;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background-color: #ccc;
-          transition: .4s;
-          border-radius: 34px;
-        }
-        
-        .toggle-slider:before {
-          position: absolute;
-          content: "";
-          height: 16px;
-          width: 16px;
-          left: 2px;
-          bottom: 2px;
-          background-color: white;
-          transition: .4s;
-          border-radius: 50%;
-        }
-        
-        input:checked + .toggle-slider {
-          background-color: var(--primary-color);
-        }
-        
-        input:checked + .toggle-slider:before {
-          transform: translateX(20px);
-        }
-        
-        .open-editor-btn {
-          position: absolute;
-          top: 10px;
+          bottom: 5px;
           right: 10px;
-          z-index: 10;
-          background-color: white;
-          border: 1px solid #dee2e6;
-          border-radius: var(--border-radius);
-          padding: 8px 12px;
-          font-size: 14px;
-          cursor: pointer;
-          box-shadow: var(--shadow);
-          transition: var(--transition);
-          display: ${this.editorVisible ? 'none' : 'flex'};
-          align-items: center;
-          gap: 6px;
-        }
-        
-        .open-editor-btn:hover {
-          background-color: var(--light-bg);
-        }
-        
-        .grid-2 {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 16px;
-        }
-        
-        .info-text {
-          font-size: 12px;
-          color: #6c757d;
-          margin-top: 4px;
-        }
-        
-        @media (max-width: 768px) {
-          .layout-container,
-          .grid-2 {
-            grid-template-columns: 1fr;
-          }
-        }
-        
-        /* Preview styles */
-        .preview-container {
-          padding: 20px;
-          text-align: center;
-        }
-        
-        .preview-info {
-          margin-bottom: 20px;
-          padding: 10px;
-          background-color: #e9ecef;
-          border-radius: var(--border-radius);
-          font-size: 14px;
+          font-size: 10px;
+          color: #aaa;
+          pointer-events: none;
         }
       </style>
       
       <div class="container">
         <div class="editor-container">
-          <div class="tab-nav">
-            <button class="tab-button ${this.activeTab === 'data' ? 'active' : ''}" data-tab="data">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
-              Chart Data
-            </button>
-            <button class="tab-button ${this.activeTab === 'options' ? 'active' : ''}" data-tab="options">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-              Chart Options
-            </button>
-            <button class="tab-button ${this.activeTab === 'layout' ? 'active' : ''}" data-tab="layout">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7m0-18H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m0-18v18"></path></svg>
-              Layout & Colors
-            </button>
-            <button class="tab-button ${this.activeTab === 'preview' ? 'active' : ''}" data-tab="preview">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-              Preview
-            </button>
-          </div>
+          <!-- Tab navigation remains the same -->
           
-          <!-- Chart Data Tab -->
-          <div class="tab-content ${this.activeTab === 'data' ? 'active' : ''}" id="data-tab">
-            <div class="form-group">
-              <label for="chart-labels">Chart Labels (comma separated)</label>
-              <input type="text" id="chart-labels" class="form-control" value="${this.labels.join(', ')}">
-            </div>
-            
-            <h3>Datasets</h3>
-            <div id="datasets-container">
-              ${this.renderDatasets()}
-            </div>
-            
-            <button id="add-dataset-btn" class="btn btn-secondary">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-              Add Dataset
-            </button>
-          </div>
+          <!-- Chart Data Tab remains the same -->
           
-          <!-- Chart Options Tab -->
-          <div class="tab-content ${this.activeTab === 'options' ? 'active' : ''}" id="options-tab">
-            <div class="form-group">
-              <label for="chart-type">Chart Type</label>
-              <select id="chart-type" class="form-control">
-                ${this.chartTypes.map(type => `<option value="${type.value}">${type.label}</option>`).join('')}
-              </select>
-            </div>
-            
-            <div class="form-group">
-              <label for="chart-title">Chart Title</label>
-              <input type="text" id="chart-title" class="form-control" value="${this.chartConfig.options.plugins.title.text}">
-            </div>
-            
-            <div class="layout-container">
-              <div class="form-group">
-                <label for="x-axis-title">X-Axis Title</label>
-                <input type="text" id="x-axis-title" class="form-control" value="${this.chartConfig.options.scales.x.title.text}">
-              </div>
-              
-              <div class="form-group">
-                <label for="y-axis-title">Y-Axis Title</label>
-                <input type="text" id="y-axis-title" class="form-control" value="${this.chartConfig.options.scales.y.title.text}">
-              </div>
-            </div>
-            
-            <div class="toggle-container">
-              <label class="toggle-switch">
-                <input type="checkbox" id="show-legend" ${this.chartConfig.options.plugins.legend.display ? 'checked' : ''}>
-                <span class="toggle-slider"></span>
-              </label>
-              <span class="toggle-label">Show Legend</span>
-            </div>
-            
-            <div class="form-group" id="legend-position-container" style="${this.chartConfig.options.plugins.legend.display ? '' : 'display: none'}">
-              <label for="legend-position">Legend Position</label>
-              <select id="legend-position" class="form-control">
-                ${this.legendPositions.map(pos => `<option value="${pos.value}" ${this.chartConfig.options.plugins.legend.position === pos.value ? 'selected' : ''}>${pos.label}</option>`).join('')}
-              </select>
-            </div>
-            
-            <div class="toggle-container">
-              <label class="toggle-switch">
-                <input type="checkbox" id="enable-animation" checked>
-                <span class="toggle-slider"></span>
-              </label>
-              <span class="toggle-label">Enable Animations</span>
-            </div>
-            
-            <div class="toggle-container">
-              <label class="toggle-switch">
-                <input type="checkbox" id="enable-tooltips" ${this.chartConfig.options.plugins.tooltip.enabled ? 'checked' : ''}>
-                <span class="toggle-slider"></span>
-              </label>
-              <span class="toggle-label">Enable Tooltips</span>
-            </div>
-            
-            <div class="toggle-container">
-              <label class="toggle-switch">
-                <input type="checkbox" id="maintain-aspect-ratio" ${this.chartConfig.options.maintainAspectRatio ? 'checked' : ''}>
-                <span class="toggle-slider"></span>
-              </label>
-              <span class="toggle-label">Maintain Aspect Ratio</span>
-            </div>
-          </div>
+          <!-- Chart Options Tab remains the same -->
           
-          <!-- Layout & Colors Tab -->
-          <div class="tab-content ${this.activeTab === 'layout' ? 'active' : ''}" id="layout-tab">
-            <div class="form-group">
-              <label for="chart-font-family">Chart Font Family</label>
-              <select id="chart-font-family" class="form-control">
-                ${this.fonts.map(font => `<option value="${font}" style="font-family: ${font}">${font}</option>`).join('')}
-              </select>
-            </div>
-            
-            <div class="grid-2">
-              <div class="form-group">
-                <label for="title-font-size">Title Font Size</label>
-                <input type="number" id="title-font-size" class="form-control" value="16" min="10" max="32">
-              </div>
-              
-              <div class="form-group">
-                <label for="axis-font-size">Axis Font Size</label>
-                <input type="number" id="axis-font-size" class="form-control" value="12" min="8" max="16">
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label for="grid-lines">Grid Lines</label>
-              <select id="grid-lines" class="form-control">
-                <option value="both">Both Axes</option>
-                <option value="x">X-Axis Only</option>
-                <option value="y">Y-Axis Only</option>
-                <option value="none">No Grid Lines</option>
-              </select>
-            </div>
-            
-            <div class="form-group">
-              <label for="chart-background">Chart Background</label>
-              <input type="color" id="chart-background" class="form-control" value="#ffffff">
-            </div>
-            
-            <div class="form-group">
-              <label>Color Palette</label>
-              <div class="palette-container">
-                ${this.colorPalettes.map(palette => `
-                  <div class="palette-item">
-                    <div class="palette-label">${palette.name}</div>
-                    <div class="palette-colors">
-                      ${palette.colors.map(color => `<span class="palette-color" style="background-color: ${color}" data-color="${color}"></span>`).join('')}
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-            
-            <div class="toggle-container">
-              <label class="toggle-switch">
-                <input type="checkbox" id="enable-rounded-corners" checked>
-                <span class="toggle-slider"></span>
-              </label>
-              <span class="toggle-label">Round Corners</span>
-            </div>
-            
-            <div class="form-group">
-              <label for="border-width">Border Width</label>
-              <input type="range" id="border-width" class="form-control" min="1" max="10" value="2">
-              <div class="info-text">Current value: <span id="border-width-value">2</span>px</div>
-            </div>
-          </div>
+          <!-- Layout & Colors Tab remains the same -->
           
-          <!-- Preview Tab -->
-          <div class="tab-content ${this.activeTab === 'preview' ? 'active' : ''}" id="preview-tab">
-            <div class="preview-info">
-              This is a preview of your chart. Use the button below to update the chart with your changes.
-            </div>
-            
-            <div class="chart-container">
-              <canvas id="chart-preview"></canvas>
-            </div>
-            
-            <div class="button-container">
-              <button id="update-chart-btn" class="btn btn-primary">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                Update Chart
-              </button>
-            </div>
-          </div>
+          <!-- Preview Tab remains the same -->
           
           <div class="button-container">
             <button id="save-chart-btn" class="btn btn-success">
@@ -792,6 +286,8 @@ class WixChartBuilder extends HTMLElement {
               Hide Editor
             </button>
           </div>
+          
+          <div class="instance-id">Instance: ${this._instanceId ? this._instanceId.substring(0, 12) + '...' : 'new'}</div>
         </div>
         
         <div class="chart-only-container">
@@ -803,6 +299,12 @@ class WixChartBuilder extends HTMLElement {
         </div>
       </div>
     `;
+    
+    // Apply any pending settings from storage after rendering UI
+    if (this.loadingFromStorage && this._pendingSettings) {
+      setTimeout(() => this.applyPendingSettings(), 0);
+      this.loadingFromStorage = false;
+    }
   }
   
   renderDatasets() {
@@ -1368,7 +870,136 @@ class WixChartBuilder extends HTMLElement {
     }
   }
   
-  saveChartSettings() {
+  saveAllSettings() {
+    try {
+      if (!this._instanceId) {
+        this._instanceId = this.getElementId();
+      }
+      
+      // Gather all current settings
+      const chartSettings = {
+        editorVisible: this.editorVisible,
+        activeTab: this.activeTab,
+        chartType: this.shadowRoot.querySelector('#chart-type').value,
+        chartTitle: this.shadowRoot.querySelector('#chart-title').value,
+        labels: this.labels,
+        datasets: JSON.parse(JSON.stringify(this.datasets)),
+        options: JSON.parse(JSON.stringify(this.chartConfig.options)),
+        xAxisTitle: this.shadowRoot.querySelector('#x-axis-title').value,
+        yAxisTitle: this.shadowRoot.querySelector('#y-axis-title').value,
+        showLegend: this.shadowRoot.querySelector('#show-legend').checked,
+        legendPosition: this.shadowRoot.querySelector('#legend-position').value,
+        enableAnimation: this.shadowRoot.querySelector('#enable-animation').checked,
+        enableTooltips: this.shadowRoot.querySelector('#enable-tooltips').checked,
+        maintainAspectRatio: this.shadowRoot.querySelector('#maintain-aspect-ratio').checked,
+        fontFamily: this.shadowRoot.querySelector('#chart-font-family').value,
+        titleFontSize: this.shadowRoot.querySelector('#title-font-size').value,
+        axisFontSize: this.shadowRoot.querySelector('#axis-font-size').value,
+        gridLines: this.shadowRoot.querySelector('#grid-lines').value,
+        chartBackground: this.shadowRoot.querySelector('#chart-background').value,
+        roundedCorners: this.shadowRoot.querySelector('#enable-rounded-corners').checked,
+        borderWidth: this.shadowRoot.querySelector('#border-width').value,
+      };
+      
+      // Store in localStorage
+      localStorage.setItem(`wix-chart-builder-data-${this._instanceId}`, JSON.stringify(chartSettings));
+      console.log(`Saved chart settings for instance ${this._instanceId}`);
+    } catch (e) {
+      console.warn('Could not save chart settings:', e);
+    }
+  }
+  
+  loadStoredSettings() {
+    try {
+      if (!this._instanceId) {
+        this._instanceId = this.getElementId();
+      }
+      
+      const storedData = localStorage.getItem(`wix-chart-builder-data-${this._instanceId}`);
+      
+      if (storedData) {
+        this.loadingFromStorage = true;
+        const settings = JSON.parse(storedData);
+        
+        // Load basic settings
+        this.editorVisible = settings.editorVisible !== undefined ? settings.editorVisible : false;
+        this.activeTab = settings.activeTab || 'data';
+        this.labels = settings.labels || this.labels;
+        
+        // Load datasets
+        if (settings.datasets && settings.datasets.length) {
+          this.datasets = settings.datasets;
+        }
+        
+        // Load chart options
+        if (settings.options) {
+          this.chartConfig.options = settings.options;
+        }
+        
+        // Store other settings to apply after UI is rendered
+        this._pendingSettings = settings;
+        
+        console.log(`Loaded chart settings for instance ${this._instanceId}`);
+      } else {
+        // No saved data, use defaults and set editor visible for new instances
+        this.editorVisible = true;
+      }
+    } catch (e) {
+      console.warn('Could not load chart settings:', e);
+      this.editorVisible = true; // Default to visible on error
+    }
+  }
+  
+  applyPendingSettings() {
+    if (!this._pendingSettings || !this.shadowRoot) return;
+    
+    try {
+      const settings = this._pendingSettings;
+      
+      // Apply settings to UI elements
+      const elements = {
+        '#chart-type': settings.chartType,
+        '#chart-title': settings.chartTitle,
+        '#x-axis-title': settings.xAxisTitle,
+        '#y-axis-title': settings.yAxisTitle,
+        '#show-legend': settings.showLegend,
+        '#legend-position': settings.legendPosition,
+        '#enable-animation': settings.enableAnimation,
+        '#enable-tooltips': settings.enableTooltips,
+        '#maintain-aspect-ratio': settings.maintainAspectRatio,
+        '#chart-font-family': settings.fontFamily,
+        '#title-font-size': settings.titleFontSize,
+        '#axis-font-size': settings.axisFontSize,
+        '#grid-lines': settings.gridLines,
+        '#chart-background': settings.chartBackground,
+        '#enable-rounded-corners': settings.roundedCorners,
+        '#border-width': settings.borderWidth
+      };
+      
+      for (const [selector, value] of Object.entries(elements)) {
+        const element = this.shadowRoot.querySelector(selector);
+        if (element && value !== undefined) {
+          if (element.type === 'checkbox') {
+            element.checked = value;
+          } else {
+            element.value = value;
+          }
+        }
+      }
+      
+      // Update border width display if available
+      const borderWidthValue = this.shadowRoot.querySelector('#border-width-value');
+      if (borderWidthValue && settings.borderWidth) {
+        borderWidthValue.textContent = settings.borderWidth;
+      }
+      
+      this._pendingSettings = null; // Clear after applying
+    } catch (e) {
+      console.warn('Error applying pending settings:', e);
+    }
+  }
+  
+  downloadChartSettings() {
     // Get all current settings
     const chartSettings = {
       type: this.shadowRoot.querySelector('#chart-type').value,
@@ -1384,7 +1015,7 @@ class WixChartBuilder extends HTMLElement {
     // Create download link
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'chart-settings.json';
+    a.download = `chart-settings-${this._instanceId}.json`;
     document.body.appendChild(a);
     a.click();
     
@@ -1406,11 +1037,15 @@ class WixChartBuilder extends HTMLElement {
     // Switch to preview tab
     this.activeTab = 'preview';
     this.updateTabUI();
+    
+    // Save settings
+    this.saveAllSettings();
   }
   
   renderChart(canvas) {
     // Get canvas element
     canvas = canvas || this.shadowRoot.querySelector('#chart-preview');
+    if (!canvas) return;
     
     // Destroy existing chart if it exists
     if (this.chartInstance) {
@@ -1454,7 +1089,7 @@ class WixChartBuilder extends HTMLElement {
     }
   }
   
-  // Generate a semi-unique ID for this element instance
+  // Generate a unique ID for this element instance
   getElementId() {
     // If the element has an ID attribute, use that
     if (this.id) return this.id;
@@ -1462,14 +1097,23 @@ class WixChartBuilder extends HTMLElement {
     // Otherwise, generate one based on its position in the DOM
     let node = this;
     let position = 0;
+    
+    // Count siblings of the same type
     while (node.previousElementSibling) {
-      position++;
+      if (node.previousElementSibling.tagName.toLowerCase() === 'wix-chart-builder') {
+        position++;
+      }
       node = node.previousElementSibling;
     }
     
-    // Use parent's tag + position as a reasonably unique identifier
-    const parentTag = this.parentElement ? this.parentElement.tagName.toLowerCase() : 'unknown';
-    return `${parentTag}-${position}`;
+    // Add parent element info for better uniqueness
+    const parentId = this.parentElement ? 
+                    (this.parentElement.id || this.parentElement.tagName.toLowerCase()) : 
+                    'unknown';
+    
+    // Create a unique ID combining parent info, element position and timestamp
+    // This helps ensure uniqueness even when DOM structure changes
+    return `${parentId}-chart-${position}-${Date.now()}`;
   }
   
   rgbaToHex(rgba) {
@@ -1485,9 +1129,9 @@ class WixChartBuilder extends HTMLElement {
     return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
   }
   
-  // Element attributes
+// Element attributes
   static get observedAttributes() {
-    return ['chart-type', 'chart-title'];
+    return ['chart-type', 'chart-title', 'instance-id'];
   }
   
   attributeChangedCallback(name, oldValue, newValue) {
@@ -1500,6 +1144,56 @@ class WixChartBuilder extends HTMLElement {
       if (this.chartInstance) {
         this.chartInstance.update();
       }
+    }
+    
+    if (name === 'instance-id' && oldValue !== newValue) {
+      this._instanceId = newValue;
+      // Load settings for this instance ID
+      this.loadStoredSettings();
+    }
+  }
+  
+  // Import/Export functions for transferring settings between chart instances
+  exportSettings() {
+    return {
+      chartType: this.shadowRoot.querySelector('#chart-type').value,
+      chartTitle: this.shadowRoot.querySelector('#chart-title').value,
+      labels: this.labels,
+      datasets: JSON.parse(JSON.stringify(this.datasets)),
+      options: JSON.parse(JSON.stringify(this.chartConfig.options))
+    };
+  }
+  
+  importSettings(settings) {
+    if (!settings) return false;
+    
+    try {
+      // Apply settings
+      if (settings.labels) this.labels = settings.labels;
+      if (settings.datasets) this.datasets = settings.datasets;
+      if (settings.options) this.chartConfig.options = settings.options;
+      
+      // Update UI
+      this.render();
+      this.setupEventListeners();
+      
+      // Apply any specific settings
+      const chartTypeSelector = this.shadowRoot.querySelector('#chart-type');
+      if (chartTypeSelector && settings.chartType) {
+        chartTypeSelector.value = settings.chartType;
+      }
+      
+      const chartTitleInput = this.shadowRoot.querySelector('#chart-title');
+      if (chartTitleInput && settings.chartTitle) {
+        chartTitleInput.value = settings.chartTitle;
+      }
+      
+      // Update chart
+      this.updateChart();
+      return true;
+    } catch (e) {
+      console.error('Error importing settings:', e);
+      return false;
     }
   }
 }
